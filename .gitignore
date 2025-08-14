@@ -53,7 +53,10 @@ vth_*.png
 
 # Input dataset policy: under chip* keep only 1-4.txt and 1-4.bmp, preserve folder tree
 # Ignore everything by default under chip*
+# Ignore everything under chip* by default
 chip*/**/*
+# Re-include directories so specific files below can be added
+!chip*/**/
 # Re-include canonical measurement files and their bitmaps anywhere in the tree
 !chip*/**/1.txt
 !chip*/**/2.txt

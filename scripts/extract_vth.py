@@ -350,17 +350,24 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
             except Exception:
                 return float("nan")
 
-        for dtype, fname in (("nmos", os.path.join(plots_outdir, "vth_nmos_vs_temp.png")),
-                             ("pmos", os.path.join(plots_outdir, "vth_pmos_vs_temp.png"))):
+        for dtype, fname in (("nmos", os.path.join(plots_outdir, "vth_nmos_vs_temp.pdf")),
+                             ("pmos", os.path.join(plots_outdir, "vth_pmos_vs_temp.pdf"))):
             d = grp[grp["device"] == dtype].copy()
             if d.empty:
                 continue
             d["T_K"] = d["temperature"].map(k_to_num)
             plt.figure(figsize=(7.5, 5.0), dpi=120)
+            import math as _math
             for dev_idx, sub in d.groupby("device_index"):
                 sub = sub.sort_values("T_K")
+                # Legend label as NMOS1/PMOS1 etc.
+                try:
+                    idx_int = int(dev_idx) if dev_idx is not None and not (hasattr(dev_idx, 'isna') and dev_idx.isna()) else None
+                except Exception:
+                    idx_int = None
+                label = f"{dtype.upper()}{idx_int if idx_int is not None else ''}"
                 plt.errorbar(sub["T_K"], sub["mean_vth_V"], yerr=sub["std_vth_V"].fillna(0.0),
-                             marker="o", capsize=3, label=f"dev {dev_idx}")
+                             marker="o", capsize=3, label=label)
             plt.xlabel("Temperature (K)")
             plt.ylabel("Vth (V)")
             plt.title(f"Vth vs T — {dtype.upper()} (mean ± std across chips)")
@@ -381,7 +388,7 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
     print(f"Wrote per-file CSV: {results_csv}")
     if os.path.exists(summary_csv):
         print(f"Wrote summary CSV: {summary_csv}")
-    if plots_outdir and os.path.exists(os.path.join(plots_outdir, "vth_nmos_vs_temp.png")):
+    if plots_outdir and os.path.exists(os.path.join(plots_outdir, "vth_nmos_vs_temp.pdf")):
         print(f"Wrote plots in: {plots_outdir}")
     if 'pivot_csv' in locals() and pivot_csv and os.path.exists(pivot_csv):
         print(f"Wrote pivot CSV: {pivot_csv}")
