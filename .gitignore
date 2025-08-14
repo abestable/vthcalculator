@@ -51,4 +51,17 @@ vth_*.png
 ~$*.xlsx
 ~$*.ods
 
+# Input dataset policy: under chip* keep only 1-4.txt and 1-4.bmp, preserve folder tree
+# Ignore everything by default under chip*
+chip*/**/*
+# Re-include canonical measurement files and their bitmaps anywhere in the tree
+!chip*/**/1.txt
+!chip*/**/2.txt
+!chip*/**/3.txt
+!chip*/**/4.txt
+!chip*/**/1.bmp
+!chip*/**/2.bmp
+!chip*/**/3.bmp
+!chip*/**/4.bmp
+
 
