@@ -42,9 +42,14 @@ Notes:
 
 ## Batch processing (CLI)
 
-Run over all chips/temperatures, extract Vth at low/high drain bias and produce CSVs and plots:
+Run over all chips/temperatures, extract Vth at low/high drain bias and produce CSVs and plots (from repo root):
 ```bash
-python3 scripts/extract_vth.py /path/to/root   --run_all   --vd 0.1   --out /path/to/root/vth_all.csv   --summary-out /path/to/root/vth_summary.csv   --plots-outdir /path/to/root
+python3 scripts/extract_vth.py . \
+  --run_all \
+  --vd 0.1 \
+  --out ./vth_all.csv \
+  --summary-out ./vth_summary.csv \
+  --plots-outdir .
 ```
 Outputs:
 - `vth_all.csv`: one row per input file (and closest block to target Vd)
@@ -56,7 +61,13 @@ Outputs:
 
 If you have a reference table with columns like `temperature, device, avg, stdev` (temperature in K, `device` such as `nmos1`, `pmos4`), pass it to produce comparison files automatically:
 ```bash
-python3 scripts/extract_vth.py /path/to/root   --run_all   --out /path/to/root/vth_all.csv   --summary-out /path/to/root/vth_summary.csv   --plots-outdir /path/to/root   --daniele-csv /path/to/RisultatiDaniele.csv   --compare-threshold 0.01
+python3 scripts/extract_vth.py . \
+  --run_all \
+  --out ./vth_all.csv \
+  --summary-out ./vth_summary.csv \
+  --plots-outdir . \
+  --daniele-csv ./RisultatiDaniele.csv \
+  --compare-threshold 0.01
 ```
 Additional outputs:
 - `vth_compare_clean.csv`: columns `temperature, device_label, abe_avg_V, abe_std_V, daniele_avg_V, daniele_std_V, delta_avg_V, delta_std_V`
