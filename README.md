@@ -8,18 +8,18 @@ Tooling to extract MOS threshold voltage (Vth) from measured Id–Vg sweeps.
   - PMOS: choose Vg at minimum gm (gm is negative), same tangent rule, Vth negative
 - Supports per-file visualization (GUI) and batch processing (CLI) across all chips/temperatures.
 
-## Requirements
+## Requirements and installation (venv recommended)
 
 - Python 3.8+
-- Packages:
-  - numpy
-  - pandas (batch summary/comparison)
-  - matplotlib (GUI plots and batch plots)
-  - tkinter (GUI; usually preinstalled on Linux; on Ubuntu: `sudo apt-get install python3-tk`)
-
-Install packages (user local):
+- Create a virtual environment and install dependencies:
 ```bash
-python3 -m pip install --user numpy pandas matplotlib
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+# Use numpy < 2 to avoid ABI issues with some distro matplotlib builds
+pip install "numpy<2" pandas matplotlib
+# For GUI on Debian/Ubuntu systems, if missing:
+# sudo apt-get install -y python3-tk
 ```
 
 ## Dataset layout
