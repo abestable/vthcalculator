@@ -1,0 +1,1 @@
+I componenti passivi sono nel file excel "results" di ogni temperatura, con l'eccezione del chip 3, dove sono in un file a parte.
