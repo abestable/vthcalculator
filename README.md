@@ -8,6 +8,13 @@ Tooling to extract MOS threshold voltage (Vth) from measured Id–Vg sweeps.
   - PMOS: choose Vg at minimum gm (gm is negative), same tangent rule, Vth negative
 - Supports per-file visualization (GUI) and batch processing (CLI) across all chips/temperatures.
 
+## Get the code
+
+```bash
+git clone https://github.com/abestable/vthcalculator.git
+cd vthcalculator
+```
+
 ## Requirements and installation (venv recommended)
 
 - Python 3.8+
