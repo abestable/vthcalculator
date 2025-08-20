@@ -80,7 +80,7 @@ make batch-daniele # Batch processing with Daniele comparison
 make derivative   # Derivative analysis for all devices (NMOS + PMOS)
 make derivative-nmos # Derivative analysis for NMOS only
 make derivative-pmos # Derivative analysis for PMOS only
-make plots        # English version of all derivative plots
+make plots        # Generate English version of all derivative plots
 
 # === UTILITY ===
 make quick-all    # Quick derivative analysis (uses existing data)
@@ -131,6 +131,7 @@ The Makefile provides comprehensive automation for all Vth analysis workflows.
 - **Output prefix**: `nmos_derivative` / `pmos_derivative`
 
 **`make plots`**
+- **Use case**: Generate English version of all derivative plots
 - **Output prefix**: `*_english`
 
 #### Legacy Targets (Backward Compatibility)
@@ -255,7 +256,7 @@ The derivative analysis feature calculates dVth/dT (threshold voltage derivative
 - **Heatmaps**: Color-coded 2D representation showing sensitivity regions
 - **Contour Plots**: Level curves for detailed analysis
 - **Data Filtering**: Automatically excludes Vds=0 for NMOS and Vds=1.2V for PMOS
-- **Multi-language**: Support for both Italian and English plot labels
+- **Multi-language**: Support for both Italian and English plot labels (use `make plots` for English)
 
 ### Generated Files
 For each analysis, you get:
@@ -301,8 +302,11 @@ tail -n +2 chip3_vth_all_vds.csv >> all_chips_vth_all_vds.csv
 tail -n +2 chip4_vth_all_vds.csv >> all_chips_vth_all_vds.csv
 tail -n +2 chip5_vth_all_vds.csv >> all_chips_vth_all_vds.csv
 
-# Run derivative analysis
+# Run derivative analysis (Italian labels by default)
 python3 scripts/vth_derivative_vs_vds_temp.py . --device-type both --output-prefix my_analysis --skip-extraction
+
+# For English labels, use the Makefile:
+# make plots
 ```
 
 ## Algorithm Details
@@ -327,7 +331,7 @@ python3 scripts/vth_derivative_vs_vds_temp.py . --device-type both --output-pref
 - **3D Plots**: Interactive scatter plots with different colors for each device
 - **Heatmaps**: Color-coded matrices with RdBu_r colormap
 - **Contour Plots**: Level curves with black dots showing actual data points
-- **Multi-language**: Support for Italian and English labels
+- **Multi-language**: Support for Italian and English labels (use `make plots` for English)
 
 ## Troubleshooting
 
@@ -389,12 +393,18 @@ make batch
 # Manual extraction for specific chip
 python3 scripts/extract_vth.py chip3 --all-vd --out chip3_only.csv
 
-# Manual derivative analysis
+# Manual derivative analysis (Italian labels by default)
 python3 scripts/vth_derivative_vs_vds_temp.py . --device-type nmos --output-prefix custom_nmos --skip-extraction
 
-# Compare different chips
+# For English labels, use the Makefile:
+# make plots
+
+# Compare different chips (Italian labels by default)
 python3 scripts/extract_vth.py chip3 --all-vd --out chip3_only.csv
 python3 scripts/vth_derivative_vs_vds_temp.py . --device-type both --output-prefix chip3_analysis --skip-extraction
+
+# For English labels, use the Makefile:
+# make plots
 ```
 
 ### Data Analysis
