@@ -22,7 +22,7 @@ help:
 	@echo "  all          - Same as derivative (all devices)"
 	@echo "  nmos         - Same as derivative-nmos"
 	@echo "  pmos         - Same as derivative-pmos"
-	@echo "  english      - Same as plots (English version)"
+
 	@echo ""
 	@echo "=== UTILITY ==="
 	@echo "  quick-all    - Quick derivative analysis (uses existing data)"
@@ -108,7 +108,6 @@ derivative-pmos: extract-data
 all: derivative
 nmos: derivative-nmos
 pmos: derivative-pmos
-english: plots
 
 # Generate English version of all plots
 plots: extract-data
