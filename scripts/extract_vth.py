@@ -133,19 +133,21 @@ def compute_vth_linear_extrapolation(vg: np.ndarray,
     if vg.ndim != 1 or id_a.ndim != 1 or vg.size != id_a.size:
         raise ValueError("vg and id_a must be 1D arrays of equal length")
 
-    # Convert to magnitude for stability
+    # For PMOS, flip the Vg axis (0 becomes 1.2, 1.2 becomes 0, etc.)
     if device_type.lower() == "pmos":
+        vg_flipped = 1.2 - vg  # Flip Vg axis around 1.2V
         y = np.abs(id_a)
-        sign = -1.0
+        sign = 1.0  # PMOS threshold should be positive
     else:
+        vg_flipped = vg
         # clip tiny negative currents caused by instrument offsets
         y = np.maximum(id_a, 0.0)
         sign = 1.0
 
-    # numerical derivative gm = dy/dvg
-    gm = np.gradient(y, vg, edge_order=1)
+    # numerical derivative gm = dy/dvg (using flipped Vg for PMOS)
+    gm = np.gradient(y, vg_flipped, edge_order=1)
     # optional: derivative of gm (second derivative of |Id|)
-    dgm = np.gradient(gm, vg, edge_order=1)
+    dgm = np.gradient(gm, vg_flipped, edge_order=1)
 
     # focus on region where current is above a tiny floor to avoid noise
     current_floor = max(1e-10, 0.001 * np.nanmax(y))  # at least 100 pA or 0.1% of max
@@ -157,9 +159,9 @@ def compute_vth_linear_extrapolation(vg: np.ndarray,
     # find index based on criterion
     if criterion == "max-gm":
         if device_type.lower() == "pmos":
-            # For PMOS, gm is negative when using |Id|. Select most negative (minimum).
-            gm_masked = np.where(valid, gm, np.inf)
-            idx = int(np.nanargmin(gm_masked))
+            # For PMOS with flipped Vg, we now look for maximum gm (not minimum)
+            gm_masked = np.where(valid, gm, -np.inf)
+            idx = int(np.nanargmax(gm_masked))
         else:
             gm_masked = np.where(valid, gm, -np.inf)
             idx = int(np.nanargmax(gm_masked))
@@ -171,15 +173,19 @@ def compute_vth_linear_extrapolation(vg: np.ndarray,
 
     # local linear fit around idx to approximate tangent
     # Build true tangent at the selected point: slope = gm[idx],
-    # and line passes through (vg[idx], y[idx]). This guarantees
+    # and line passes through (vg_flipped[idx], y[idx]). This guarantees
     # alignment between displayed tangent slope and gm value.
     slope = gm[idx]
-    intercept = y[idx] - slope * vg[idx]
+    intercept = y[idx] - slope * vg_flipped[idx]
     if abs(slope) < 1e-15:
         return math.nan, float(np.nanmax(gm)), idx
 
     vth_mag = -intercept / slope
-    vth_signed = sign * float(vth_mag)
+    # For PMOS, the threshold is already correct from the flipped Vg calculation
+    if device_type.lower() == "pmos":
+        vth_signed = -1.0 * float(vth_mag)  # PMOS threshold should be negative
+    else:
+        vth_signed = sign * float(vth_mag)
     gm_max = float(np.nanmax(gm)) if criterion == "max-gm" else float(gm[idx])
     return vth_signed, gm_max, idx
 
@@ -417,15 +423,18 @@ def compute_gm_and_tangent(vg: np.ndarray,
 
     Uses the same definition as compute_vth_linear_extrapolation.
     """
+    # For PMOS, flip the Vg axis (0 becomes 1.2, 1.2 becomes 0, etc.)
     if device_type.lower() == "pmos":
+        vg_flipped = 1.2 - vg  # Flip Vg axis around 1.2V
         y = np.abs(id_a)
-        sign = -1.0
+        sign = 1.0  # PMOS threshold should be positive
     else:
+        vg_flipped = vg
         y = np.maximum(id_a, 0.0)
         sign = 1.0
 
-    gm = np.gradient(y, vg, edge_order=1)
-    dgm = np.gradient(gm, vg, edge_order=1)
+    gm = np.gradient(y, vg_flipped, edge_order=1)
+    dgm = np.gradient(gm, vg_flipped, edge_order=1)
     current_floor = max(1e-10, 0.001 * np.nanmax(y))
     valid = y >= current_floor
     if np.count_nonzero(valid) < max(5, window):
@@ -438,17 +447,22 @@ def compute_gm_and_tangent(vg: np.ndarray,
     else:
         raise ValueError(f"Unknown criterion: {criterion}")
     if criterion == "max-gm" and device_type.lower() == "pmos":
-        metric_masked = np.where(valid, metric, np.inf)
-        idx = int(np.nanargmin(metric_masked))
+        # For PMOS with flipped Vg, we now look for maximum gm (not minimum)
+        metric_masked = np.where(valid, metric, -np.inf)
+        idx = int(np.nanargmax(metric_masked))
     else:
         metric_masked = np.where(valid, metric, -np.inf)
         idx = int(np.nanargmax(metric_masked))
 
-    # Tangent exactly at selected point
+    # Tangent exactly at selected point (using flipped Vg for PMOS)
     slope = gm[idx]
-    intercept = y[idx] - slope * vg[idx]
+    intercept = y[idx] - slope * vg_flipped[idx]
     vth_mag = -intercept / slope if abs(slope) > 1e-15 else math.nan
-    vth_signed = sign * float(vth_mag) if not math.isnan(vth_mag) else math.nan
+    # For PMOS, the threshold is already correct from the flipped Vg calculation
+    if device_type.lower() == "pmos" and not math.isnan(vth_mag):
+        vth_signed = -1.0 * float(vth_mag)  # PMOS threshold should be negative
+    else:
+        vth_signed = sign * float(vth_mag) if not math.isnan(vth_mag) else math.nan
     return y, gm, dgm, idx, float(slope), float(intercept), vth_signed
 
 
@@ -611,12 +625,21 @@ def run_gui() -> None:
             criterion="max-gm"
         )
 
+        # For PMOS, use flipped Vg axis for display (more intuitive)
+        if device == "pmos":
+            vg_display = 1.2 - block.vg_volts  # Flip Vg axis for display
+        else:
+            vg_display = block.vg_volts
+
         # Plot i_D (blue) in amperes and tangent (black) on first axis
-        ax0.plot(block.vg_volts, y, color="blue", label="i_D (A)")
-        y_tan = slope * block.vg_volts + intercept
-        ax0.plot(block.vg_volts, y_tan, color="black", linewidth=2.0, label="tangent")
+        ax0.plot(vg_display, y, color="blue", label="i_D (A)")
+        y_tan = slope * vg_display + intercept
+        ax0.plot(vg_display, y_tan, color="black", linewidth=2.0, label="tangent")
         if not math.isnan(vth):
             vth_display = abs(vth)
+            if device == "pmos":
+                # For PMOS, flip Vth for display since we flipped the Vg axis
+                vth_display = 1.2 - vth_display  # Flip Vth for display
             ax0.axvline(vth_display, color="k", linestyle=":")
             ax0.annotate("Vth", xy=(vth_display, 0), xytext=(vth_display, 0),
                          textcoords="data", ha="center")
@@ -625,8 +648,8 @@ def run_gui() -> None:
         ax0.legend(loc="best")
 
         # Plot gm (red) on second axis with its own scale; mark max
-        ax1.plot(block.vg_volts, gm, color="red", label="gm = d|Id|/dVg (A/V)")
-        ax1.plot(block.vg_volts[idx], gm[idx], 'ro', ms=4, label='gm max')
+        ax1.plot(vg_display, gm, color="red", label="gm = d|Id|/dVg (A/V)")
+        ax1.plot(vg_display[idx], gm[idx], 'ro', ms=4, label='gm max')
         ax1.set_xlabel("v_GS (V)")
         ax1.set_ylabel("gm (A/V)")
         ax1.legend(loc="best")
