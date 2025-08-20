@@ -190,6 +190,85 @@ def compute_vth_linear_extrapolation(vg: np.ndarray,
     return vth_signed, gm_max, idx
 
 
+def compute_vth_sqrt_method(vg: np.ndarray,
+                           id_a: np.ndarray,
+                           device_type: str,
+                           window: int = 7,
+                           criterion: str = "max-gm") -> Tuple[float, float, int]:
+    """Compute threshold voltage using square root of current method.
+    
+    This method uses √Id instead of Id directly, which is more appropriate
+    for higher Vds values where the transistor operates in saturation.
+    For saturation region: Id ∝ (Vgs - Vth)², therefore √Id ∝ (Vgs - Vth)
+    
+    Returns (vth_signed, gm_max, idx_gm_max).
+    
+    device_type: 'nmos' or 'pmos'. For PMOS we use |Id| for gm/vth and return
+    a negative Vth value.
+    """
+    if vg.ndim != 1 or id_a.ndim != 1 or vg.size != id_a.size:
+        raise ValueError("vg and id_a must be 1D arrays of equal length")
+
+    # For PMOS, flip the Vg axis (0 becomes 1.2, 1.2 becomes 0, etc.)
+    if device_type.lower() == "pmos":
+        vg_flipped = 1.2 - vg  # Flip Vg axis around 1.2V
+        y = np.abs(id_a)
+        sign = 1.0  # PMOS threshold should be positive
+    else:
+        vg_flipped = vg
+        # clip tiny negative currents caused by instrument offsets
+        y = np.maximum(id_a, 0.0)
+        sign = 1.0
+
+    # Apply square root to current: √Id
+    y_sqrt = np.sqrt(y)
+    
+    # numerical derivative gm = d(√Id)/dvg (using flipped Vg for PMOS)
+    gm = np.gradient(y_sqrt, vg_flipped, edge_order=1)
+    # optional: derivative of gm (second derivative of √Id)
+    dgm = np.gradient(gm, vg_flipped, edge_order=1)
+
+    # focus on region where current is above a tiny floor to avoid noise
+    current_floor = max(1e-10, 0.001 * np.nanmax(y))  # at least 100 pA or 0.1% of max
+    valid = y >= current_floor
+    if np.count_nonzero(valid) < max(5, window):
+        # not enough valid points; fall back to global
+        valid = np.ones_like(y, dtype=bool)
+
+    # find index based on criterion
+    if criterion == "max-gm":
+        if device_type.lower() == "pmos":
+            # For PMOS with flipped Vg, we now look for maximum gm (not minimum)
+            gm_masked = np.where(valid, gm, -np.inf)
+            idx = int(np.nanargmax(gm_masked))
+        else:
+            gm_masked = np.where(valid, gm, -np.inf)
+            idx = int(np.nanargmax(gm_masked))
+    elif criterion == "max-dgm":
+        dgm_masked = np.where(valid, dgm, -np.inf)
+        idx = int(np.nanargmax(dgm_masked))
+    else:
+        raise ValueError(f"Unknown criterion: {criterion}")
+
+    # local linear fit around idx to approximate tangent
+    # Build true tangent at the selected point: slope = gm[idx],
+    # and line passes through (vg_flipped[idx], y_sqrt[idx]). This guarantees
+    # alignment between displayed tangent slope and gm value.
+    slope = gm[idx]
+    intercept = y_sqrt[idx] - slope * vg_flipped[idx]
+    if abs(slope) < 1e-15:
+        return math.nan, float(np.nanmax(gm)), idx
+
+    vth_mag = -intercept / slope
+    # For PMOS, the threshold is already correct from the flipped Vg calculation
+    if device_type.lower() == "pmos":
+        vth_signed = -1.0 * float(vth_mag)  # PMOS threshold should be negative
+    else:
+        vth_signed = sign * float(vth_mag)
+    gm_max = float(np.nanmax(gm)) if criterion == "max-gm" else float(gm[idx])
+    return vth_signed, gm_max, idx
+
+
 def infer_device_type_from_path(path: str) -> str:
     lower = path.lower()
     if os.sep + "pmos" + os.sep in lower:
@@ -469,7 +548,7 @@ def compute_gm_and_tangent(vg: np.ndarray,
 def run_gui() -> None:
     try:
         import tkinter as tk
-        from tkinter import filedialog, ttk
+        from tkinter import filedialog, ttk, messagebox
         import matplotlib
         matplotlib.use("TkAgg")
         import matplotlib.pyplot as plt
@@ -483,6 +562,7 @@ def run_gui() -> None:
 
     file_path_var = tk.StringVar(value="")
     device_var = tk.StringVar(value="")
+    method_var = tk.StringVar(value="Traditional")
     vd_values: List[float] = []
     blocks_by_vd: Dict[float, SweepBlock] = {}
 
@@ -532,6 +612,11 @@ def run_gui() -> None:
     ttk.Label(frame_top, text="Vd block:").pack(side=tk.LEFT, padx=(12, 2))
     vd_combo = ttk.Combobox(frame_top, state="readonly", width=10)
     vd_combo.pack(side=tk.LEFT)
+    
+    ttk.Label(frame_top, text="Method:").pack(side=tk.LEFT, padx=(12, 2))
+    method_combo = ttk.Combobox(frame_top, textvariable=method_var, state="readonly", width=12)
+    method_combo["values"] = ("Traditional", "Sqrt", "Hybrid")
+    method_combo.pack(side=tk.LEFT)
 
     frame_fig = ttk.Frame(root)
     frame_fig.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
@@ -595,6 +680,19 @@ def run_gui() -> None:
 
     cid_motion = fig.canvas.mpl_connect('motion_notify_event', on_move)
 
+    def compute_vth_with_method(vg, id_a, device_type, method, window=7, criterion="max-gm"):
+        """Compute Vth using the selected method."""
+        if method == "Traditional":
+            return compute_vth_linear_extrapolation(vg, id_a, device_type, window, criterion)
+        elif method == "Sqrt":
+            return compute_vth_sqrt_method(vg, id_a, device_type, window, criterion)
+        elif method == "Hybrid":
+            # For hybrid, we need to determine Vds from the current block
+            # This will be handled in update_plot
+            return compute_vth_linear_extrapolation(vg, id_a, device_type, window, criterion)
+        else:
+            raise ValueError(f"Unknown method: {method}")
+
     def update_plot(*_args):
         ax0.clear()
         ax1.clear()
@@ -620,10 +718,56 @@ def run_gui() -> None:
             return
 
         device = (device_var.get() or infer_device_type_from_path(path)).lower()
-        y, gm, dgm, idx, slope, intercept, vth = compute_gm_and_tangent(
-            block.vg_volts, block.id_amps, device_type=device, window=7,
-            criterion="max-gm"
-        )
+        method = method_var.get()
+        
+        # Handle hybrid method
+        if method == "Hybrid":
+            vds_threshold = 0.5
+            if abs(block.vd_volts) < vds_threshold:
+                method = "Traditional"
+            else:
+                method = "Sqrt"
+        
+        # Compute Vth using selected method
+        if method == "Traditional":
+            y, gm, dgm, idx, slope, intercept, vth = compute_gm_and_tangent(
+                block.vg_volts, block.id_amps, device_type=device, window=7,
+                criterion="max-gm"
+            )
+        elif method == "Sqrt":
+            # For sqrt method, we need to compute gm differently
+            if device == "pmos":
+                vg_flipped = 1.2 - block.vg_volts
+                y = np.abs(block.id_amps)
+            else:
+                vg_flipped = block.vg_volts
+                y = np.maximum(block.id_amps, 0.0)
+            
+            # Apply square root
+            y_sqrt = np.sqrt(y)
+            gm = np.gradient(y_sqrt, vg_flipped, edge_order=1)
+            dgm = np.gradient(gm, vg_flipped, edge_order=1)
+            
+            # Find maximum gm
+            current_floor = max(1e-10, 0.001 * np.nanmax(y))
+            valid = y >= current_floor
+            if np.count_nonzero(valid) < 7:
+                valid = np.ones_like(y, dtype=bool)
+            
+            gm_masked = np.where(valid, gm, -np.inf)
+            idx = int(np.nanargmax(gm_masked))
+            
+            # Compute tangent
+            slope = gm[idx]
+            intercept = y_sqrt[idx] - slope * vg_flipped[idx]
+            vth_mag = -intercept / slope if abs(slope) > 1e-15 else math.nan
+            
+            if device == "pmos" and not math.isnan(vth_mag):
+                vth = -1.0 * float(vth_mag)
+            else:
+                vth = float(vth_mag) if not math.isnan(vth_mag) else math.nan
+        else:
+            raise ValueError(f"Unknown method: {method}")
 
         # For PMOS, use flipped Vg axis for display (more intuitive)
         if device == "pmos":
@@ -632,7 +776,17 @@ def run_gui() -> None:
             vg_display = block.vg_volts
 
         # Plot i_D (blue) in amperes and tangent (black) on first axis
-        ax0.plot(vg_display, y, color="blue", label="i_D (A)")
+        if method == "Sqrt":
+            # For sqrt method, plot √Id
+            if device == "pmos":
+                y_plot = np.sqrt(np.abs(block.id_amps))
+            else:
+                y_plot = np.sqrt(np.maximum(block.id_amps, 0.0))
+            ax0.plot(vg_display, y_plot, color="blue", label="√i_D (√A)")
+        else:
+            # For traditional method, plot Id
+            ax0.plot(vg_display, y, color="blue", label="i_D (A)")
+        
         y_tan = slope * vg_display + intercept
         ax0.plot(vg_display, y_tan, color="black", linewidth=2.0, label="tangent")
         if not math.isnan(vth):
@@ -643,15 +797,25 @@ def run_gui() -> None:
             ax0.axvline(vth_display, color="k", linestyle=":")
             ax0.annotate("Vth", xy=(vth_display, 0), xytext=(vth_display, 0),
                          textcoords="data", ha="center")
-        ax0.set_ylabel("i_D (A)")
-        ax0.set_title(f"IV — {os.path.basename(path)} @ Vd={block.vd_volts:.3g} V")
+        if method == "Sqrt":
+            ax0.set_ylabel("√i_D (√A)")
+            ax0.set_title(f"√IV — {os.path.basename(path)} @ Vd={block.vd_volts:.3g} V ({method})")
+        else:
+            ax0.set_ylabel("i_D (A)")
+            ax0.set_title(f"IV — {os.path.basename(path)} @ Vd={block.vd_volts:.3g} V ({method})")
         ax0.legend(loc="best")
 
         # Plot gm (red) on second axis with its own scale; mark max
-        ax1.plot(vg_display, gm, color="red", label="gm = d|Id|/dVg (A/V)")
+        if method == "Sqrt":
+            ax1.plot(vg_display, gm, color="red", label="gm = d√|Id|/dVg (√A/V)")
+        else:
+            ax1.plot(vg_display, gm, color="red", label="gm = d|Id|/dVg (A/V)")
         ax1.plot(vg_display[idx], gm[idx], 'ro', ms=4, label='gm max')
         ax1.set_xlabel("v_GS (V)")
-        ax1.set_ylabel("gm (A/V)")
+        if method == "Sqrt":
+            ax1.set_ylabel("gm (√A/V)")
+        else:
+            ax1.set_ylabel("gm (A/V)")
         ax1.legend(loc="best")
 
         # (Re)create hover annotations after clearing axes
@@ -668,12 +832,13 @@ def run_gui() -> None:
         annot1.set_visible(False)
 
         status_var.set(
-            f"Device={device.upper()}  Vd={block.vd_volts:.4g} V  Vth={vth:.5g} V  idx={idx}  criterion=max-gm"
+            f"Device={device.upper()}  Vd={block.vd_volts:.4g} V  Method={method}  Vth={vth:.5g} V  idx={idx}  criterion=max-gm"
         )
         fig.tight_layout(pad=2.0)
         canvas.draw()
 
     vd_combo.bind("<<ComboboxSelected>>", update_plot)
+    method_combo.bind("<<ComboboxSelected>>", update_plot)
 
     root.mainloop()
 

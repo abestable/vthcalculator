@@ -55,14 +55,16 @@ The repo includes only canonical measurement files to keep it lean:
 ## Quick Start
 
 ### GUI Mode
-Launch interactive viewer to inspect a single file, select block Vd, and see Id/gm, tangent and Vth:
+Launch interactive viewer to inspect a single file, select block Vd, choose Vth extraction method, and see Id/gm, tangent and Vth:
 ```bash
 make gui
 ```
 Notes:
 - The GUI auto-selects the closest Vd to 0.1 V for NMOS and 1.1 V for PMOS.
+- **NEW**: Choose between Traditional, Sqrt, and Hybrid Vth extraction methods.
 - Hover the cursor over plots to read `(Vg, Id)` or `(Vg, gm)`.
 - Close the window to free the shell.
+- See `GUI_Usage_Guide.md` for detailed instructions.
 
 ### Automated Analysis (Recommended)
 Use the Makefile for automated Vth analysis and derivative analysis:
