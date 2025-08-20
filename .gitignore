@@ -1,70 +1,34 @@
-# Python caches
+# Generated analysis files
+*.csv
+*.pdf
+*.png
+
+# But keep specific reference files
+!RisultatiDaniele.csv
+!DanieleResults/
+
+# Python cache
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
 
-# Virtual environments
+# Virtual environment
 .venv/
 venv/
 env/
-.env
 
-# Packaging/build
-build/
-dist/
-*.egg-info/
-.eggs/
-
-# Notebooks/checkpoints
-.ipynb_checkpoints/
-
-# Test/type checker caches
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# Editors/IDE
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS junk
+# OS files
 .DS_Store
 Thumbs.db
 
 # Logs
+logs/
 *.log
-
-# Generated analysis outputs (CSV/plots)
-vth_*.csv
-vth_*.png
-*/vth_*.csv
-*/vth_*.png
-/vth_all*.csv
-/vth_summary*.csv
-/vth_by_chip.csv
-/vth_compare_clean*.csv
-
-# Temporary office files
-~$*.xlsx
-~$*.ods
-
-# Input dataset policy: under chip* keep only 1-4.txt and 1-4.bmp, preserve folder tree
-# Ignore everything by default under chip*
-# Ignore everything under chip* by default
-chip*/**/*
-# Re-include directories so specific files below can be added
-!chip*/**/
-# Re-include canonical measurement files and their bitmaps anywhere in the tree
-!chip*/**/1.txt
-!chip*/**/2.txt
-!chip*/**/3.txt
-!chip*/**/4.txt
-!chip*/**/1.bmp
-!chip*/**/2.bmp
-!chip*/**/3.bmp
-!chip*/**/4.bmp
 
 

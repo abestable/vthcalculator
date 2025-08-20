@@ -52,31 +52,41 @@ Notes:
 - Close the window to free the shell.
 
 ### Automated Analysis (Recommended)
-Use the Makefile for automated Vth derivative analysis:
+Use the Makefile for automated Vth analysis and derivative analysis:
 
 ```bash
 # Show available commands
 make help
 
-# Run complete analysis (NMOS + PMOS)
-make all
+# === BASIC VTH EXTRACTION ===
+make gui          # Interactive GUI for single file analysis
+make batch        # Standard batch processing (all chips, summary, plots)
+make batch-daniele # Batch processing with Daniele comparison
 
-# Run analysis for specific device type
-make nmos
-make pmos
+# === DERIVATIVE ANALYSIS ===
+make derivative   # Derivative analysis for all devices (NMOS + PMOS)
+make derivative-nmos # Derivative analysis for NMOS only
+make derivative-pmos # Derivative analysis for PMOS only
+make english      # English version of all derivative plots
 
-# Generate English version of all plots
-make english
-
-# Quick analysis (uses existing data if available)
-make quick-all
-
-# Clean generated files
-make clean
+# === UTILITY ===
+make quick-all    # Quick derivative analysis (uses existing data)
+make list         # List all generated files
+make clean        # Clean all generated files
 ```
 
-## Batch processing (CLI)
+## Batch Processing (CLI)
 
+### Using Makefile (Recommended)
+```bash
+# Standard batch processing
+make batch
+
+# Batch processing with Daniele comparison
+make batch-daniele
+```
+
+### Manual Commands
 Run over all chips/temperatures, extract Vth at low/high drain bias and produce CSVs and plots (from repo root):
 ```bash
 python3 scripts/extract_vth.py . \
@@ -86,7 +96,8 @@ python3 scripts/extract_vth.py . \
   --summary-out ./vth_summary.csv \
   --plots-outdir .
 ```
-Outputs:
+
+**Outputs:**
 - `vth_all.csv`: one row per input file (and closest block to target Vd)
 - `vth_summary.csv`: grouped by `temperature, device (nmos/pmos), device_index` with count/mean/std/min/max
 - `vth_by_chip.csv`: pivot by chip per `(temperature, device_label)` with per-chip values and overall avg/std
@@ -95,6 +106,13 @@ Outputs:
 ### Comparison against a reference CSV (e.g., Daniele)
 
 If you have a reference table with columns like `temperature, device, avg, stdev` (temperature in K, `device` such as `nmos1`, `pmos4`), pass it to produce comparison files automatically:
+
+**Using Makefile:**
+```bash
+make batch-daniele
+```
+
+**Manual command:**
 ```bash
 python3 scripts/extract_vth.py . \
   --run_all \
@@ -104,7 +122,8 @@ python3 scripts/extract_vth.py . \
   --daniele-csv ./RisultatiDaniele.csv \
   --compare-threshold 0.01
 ```
-Additional outputs:
+
+**Additional outputs:**
 - `vth_compare_clean.csv`: columns `temperature, device_label, abe_avg_V, abe_std_V, daniele_avg_V, daniele_std_V, delta_avg_V, delta_std_V`
 - `vth_compare_clean_status.csv`: same plus `status` with PASS/FAIL if any absolute delta exceeds the threshold (default 0.01 V)
 
