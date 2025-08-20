@@ -16,12 +16,13 @@ help:
 	@echo "  derivative   - Run derivative analysis for all devices (NMOS + PMOS)"
 	@echo "  derivative-nmos - Run derivative analysis for NMOS only"
 	@echo "  derivative-pmos - Run derivative analysis for PMOS only"
-	@echo "  english      - Generate English version of all derivative plots"
+	@echo "  plots        - Generate English version of all derivative plots"
 	@echo ""
 	@echo "=== LEGACY TARGETS (for backward compatibility) ==="
 	@echo "  all          - Same as derivative (all devices)"
 	@echo "  nmos         - Same as derivative-nmos"
 	@echo "  pmos         - Same as derivative-pmos"
+	@echo "  english      - Same as plots (English version)"
 	@echo ""
 	@echo "=== UTILITY ==="
 	@echo "  quick-all    - Quick derivative analysis (uses existing data)"
@@ -107,9 +108,10 @@ derivative-pmos: extract-data
 all: derivative
 nmos: derivative-nmos
 pmos: derivative-pmos
+english: plots
 
 # Generate English version of all plots
-english: extract-data
+plots: extract-data
 	@echo "Generating English version of all plots..."
 	@cp all_chips_vth_all_vds.csv all_chips_english_data.csv
 	python3 scripts/vth_derivative_vs_vds_temp.py . --device-type both --output-prefix all_chips_english --skip-extraction

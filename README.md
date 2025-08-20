@@ -80,7 +80,7 @@ make batch-daniele # Batch processing with Daniele comparison
 make derivative   # Derivative analysis for all devices (NMOS + PMOS)
 make derivative-nmos # Derivative analysis for NMOS only
 make derivative-pmos # Derivative analysis for PMOS only
-make english      # English version of all derivative plots
+make plots        # English version of all derivative plots
 
 # === UTILITY ===
 make quick-all    # Quick derivative analysis (uses existing data)
@@ -130,7 +130,7 @@ The Makefile provides comprehensive automation for all Vth analysis workflows.
 **`make derivative-nmos`** / **`make derivative-pmos`**
 - **Output prefix**: `nmos_derivative` / `pmos_derivative`
 
-**`make english`**
+**`make plots`**
 - **Output prefix**: `*_english`
 
 #### Legacy Targets (Backward Compatibility)
@@ -162,7 +162,7 @@ make batch
 make derivative
 
 # 3. Generate English plots
-make english
+make plots
 
 # 4. View results
 make list
