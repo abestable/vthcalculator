@@ -246,8 +246,12 @@ def create_aggregated_plots(df_aggregated: pd.DataFrame, output_dir: str = "."):
     plt.savefig(os.path.join(output_dir, 'dvth_dt_aggregated_vs_temp.pdf'), dpi=300, bbox_inches='tight')
     plt.close()
     
-    # 2. PLOT: Confronto diretto tra metodi (scatter con error bars)
+    # 2. PLOT: Confronto diretto tra metodi (scatter con error bars) - COLORATO PER DEVICE
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    
+    # Colori per device (4 device = 4 colori)
+    device_colors = {1: '#1f77b4', 2: '#ff7f0e', 3: '#2ca02c', 4: '#d62728'}  # Blu, Arancione, Verde, Rosso
+    device_markers = {1: 'o', 2: 's', 3: '^', 4: 'D'}  # Cerchio, Quadrato, Triangolo, Diamante
     
     # NMOS scatter
     nmos_comparison = []
@@ -267,20 +271,24 @@ def create_aggregated_plots(df_aggregated: pd.DataFrame, output_dir: str = "."):
     if nmos_comparison:
         nmos_comp_df = pd.DataFrame(nmos_comparison)
         
-        # Scatter plot con error bars
-        ax1.errorbar(nmos_comp_df['traditional_mean'], nmos_comp_df['sqrt_mean'],
-                    xerr=nmos_comp_df['traditional_std'], yerr=nmos_comp_df['sqrt_std'],
-                    fmt='o', alpha=0.7, capsize=3)
+        # Scatter plot con error bars colorato per device
+        for device_idx in nmos_comp_df['device_index'].unique():
+            device_data = nmos_comp_df[nmos_comp_df['device_index'] == device_idx]
+            ax1.errorbar(device_data['traditional_mean'], device_data['sqrt_mean'],
+                        xerr=device_data['traditional_std'], yerr=device_data['sqrt_std'],
+                        fmt=device_markers[device_idx], color=device_colors[device_idx], 
+                        alpha=0.8, capsize=3, markersize=8,
+                        label=f'Device {device_idx}')
         
         # Linea di identità
         min_val = min(nmos_comp_df['traditional_mean'].min(), nmos_comp_df['sqrt_mean'].min())
         max_val = max(nmos_comp_df['traditional_mean'].max(), nmos_comp_df['sqrt_mean'].max())
         ax1.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.5, label='y=x')
         
-        ax1.set_xlabel('dVth/dT Traditional (V/K)')
-        ax1.set_ylabel('dVth/dT Sqrt (V/K)')
-        ax1.set_title('NMOS: Confronto Metodi (Aggregato)\nVds=0.1V vs Vds=1.2V')
-        ax1.legend()
+        ax1.set_xlabel('dVth/dT Traditional Method (V/K)\nVds = 0.1V')
+        ax1.set_ylabel('dVth/dT Sqrt Method (V/K)\nVds = 1.2V')
+        ax1.set_title('NMOS: Method Comparison (Aggregated Data)')
+        ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         ax1.grid(True, alpha=0.3)
     
     # PMOS scatter
@@ -301,20 +309,24 @@ def create_aggregated_plots(df_aggregated: pd.DataFrame, output_dir: str = "."):
     if pmos_comparison:
         pmos_comp_df = pd.DataFrame(pmos_comparison)
         
-        # Scatter plot con error bars
-        ax2.errorbar(pmos_comp_df['traditional_mean'], pmos_comp_df['sqrt_mean'],
-                    xerr=pmos_comp_df['traditional_std'], yerr=pmos_comp_df['sqrt_std'],
-                    fmt='o', alpha=0.7, capsize=3)
+        # Scatter plot con error bars colorato per device
+        for device_idx in pmos_comp_df['device_index'].unique():
+            device_data = pmos_comp_df[pmos_comp_df['device_index'] == device_idx]
+            ax2.errorbar(device_data['traditional_mean'], device_data['sqrt_mean'],
+                        xerr=device_data['traditional_std'], yerr=device_data['sqrt_std'],
+                        fmt=device_markers[device_idx], color=device_colors[device_idx], 
+                        alpha=0.8, capsize=3, markersize=8,
+                        label=f'Device {device_idx}')
         
         # Linea di identità
         min_val = min(pmos_comp_df['traditional_mean'].min(), pmos_comp_df['sqrt_mean'].min())
         max_val = max(pmos_comp_df['traditional_mean'].max(), pmos_comp_df['sqrt_mean'].max())
         ax2.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.5, label='y=x')
         
-        ax2.set_xlabel('dVth/dT Traditional (V/K)')
-        ax2.set_ylabel('dVth/dT Sqrt (V/K)')
-        ax2.set_title('PMOS: Confronto Metodi (Aggregato)\nVds=1.1V vs Vds=0.0V')
-        ax2.legend()
+        ax2.set_xlabel('dVth/dT Traditional Method (V/K)\nVds = 1.1V')
+        ax2.set_ylabel('dVth/dT Sqrt Method (V/K)\nVds = 0.0V')
+        ax2.set_title('PMOS: Method Comparison (Aggregated Data)')
+        ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()

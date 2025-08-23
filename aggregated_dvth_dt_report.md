@@ -147,3 +147,29 @@ L'analisi aggregata conferma:
 
 *Report generato automaticamente - Analisi aggregata completata con successo*
 
+## 🎨 **Miglioramento Plot Scatter - Colorazione per Device**
+
+Il plot scatter è stato migliorato per identificare chiaramente ogni device:
+
+### **Codifica Colori e Marker:**
+- **Device 1**: Blu (#1f77b4) - Cerchio (o)
+- **Device 2**: Arancione (#ff7f0e) - Quadrato (s) 
+- **Device 3**: Verde (#2ca02c) - Triangolo (^)
+- **Device 4**: Rosso (#d62728) - Diamante (D)
+
+### **Vantaggi della Colorazione:**
+1. **Identificazione immediata** di quale device è ogni punto
+2. **Doppia codifica** (colore + marker) per massima chiarezza
+3. **Analisi per device** - possibile vedere pattern specifici per ogni device
+4. **Legenda esterna** per non sovrapporsi ai dati
+
+### **Miglioramenti Grafici:**
+- **Titoli in inglese** per presentazioni internazionali
+- **Informazioni Vds negli assi** invece che nel titolo per maggiore chiarezza
+- **Layout più pulito** e professionale
+
+### **Esempi di Interpretazione:**
+- **NMOS Device 3** (verde, triangoli): Differenza media solo 1.4% - eccellente correlazione
+- **PMOS Device 1** (blu, cerchi): Differenza media 24.0% - maggiore variabilità
+- **PMOS Device 3** (verde, triangoli): Differenza media -0.8% - correlazione quasi perfetta
+
