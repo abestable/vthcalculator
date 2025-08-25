@@ -32,3 +32,43 @@ logs/
 *.log
 
 
+
+
+# Output directories
+output/*/csv/
+output/*/plots/
+output/*/reports/
+
+# Temporary files
+*.tmp
+*.temp
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+
+# Output directories
+output/*/csv/
+output/*/plots/
+output/*/reports/
+
+# Temporary files
+*.tmp
+*.temp
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

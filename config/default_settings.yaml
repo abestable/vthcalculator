@@ -1,0 +1,25 @@
+# Configurazioni di default per l'analisi Vth
+vth_extraction:
+  default_vd_nmos: 0.1
+  default_vd_pmos: 1.1
+  window_size: 7
+  include_vd0: false
+
+output:
+  base_path: "output"
+  create_dirs: true
+  save_plots: true
+  save_csv: true
+
+gui:
+  default_device: "nmos"
+  plot_style: "default"
+  window_size: [1200, 800]
+
+analysis:
+  derivative:
+    temperature_range: [-40, 125]
+    vds_range: [0.05, 0.2]
+  vds_effect:
+    reference_vds: 0.1
+    comparison_vds: [0.05, 0.15, 0.2]

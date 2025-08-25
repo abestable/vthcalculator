@@ -1,0 +1,5 @@
+# Dependencies for VthCalculator
+numpy<2
+pandas
+matplotlib
+pyyaml
