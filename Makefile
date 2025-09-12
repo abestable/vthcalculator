@@ -24,8 +24,8 @@ help:
 	@echo ""
 	@echo "=== BASIC VTH EXTRACTION ==="
 	@echo "  gui          - Launch interactive GUI per analisi singolo file"
-	@echo "  batch        - Run batch processing (all chips, summary, plots)"
-	@echo "  batch-daniele- Run batch processing con confronto Daniele"
+	@echo "  batch        - Run batch processing con entrambi i metodi (traditional + sqrt)"
+	@echo "  batch-daniele- Run batch processing con confronto Daniele (entrambi i metodi)"
 	@echo ""
 	@echo "=== DERIVATIVE ANALYSIS ==="
 	@echo "  derivative   - Run derivative analysis per tutti i dispositivi"
@@ -43,7 +43,7 @@ help:
 	@echo "Esempi:"
 	@echo "  make install # Installa dipendenze"
 	@echo "  make gui     # Analisi interattiva"
-	@echo "  make batch   # Batch processing standard"
+	@echo "  make batch   # Batch processing (entrambi i metodi)"
 	@echo "  make derivative # Derivative analysis"
 	@echo "  make clean   # Pulisce tutti i file"
 
@@ -78,20 +78,22 @@ gui:
 	@echo "Launching interactive GUI..."
 	$(PYTHON) $(SRC_DIR)/analysis/extract_vth.py --gui
 
-# Run standard batch processing
+# Run batch processing with both traditional and sqrt methods
 batch:
-	@echo "Running standard batch processing..."
+	@echo "Running batch processing with both traditional and sqrt methods..."
 	$(PYTHON) $(SRC_DIR)/analysis/extract_vth.py $(DATA_DIR)/raw --run_all \
+		--methods traditional sqrt \
 		--out $(OUTPUT_DIR)/vth_extraction/csv/vth_all.csv \
 		--summary-out $(OUTPUT_DIR)/vth_extraction/csv/vth_summary.csv \
 		--plots-outdir $(OUTPUT_DIR)/vth_extraction/plots
 	@echo "✓ Batch processing completed!"
 	@echo "Check generated files in $(OUTPUT_DIR)/vth_extraction/"
 
-# Run batch processing with Daniele comparison
+# Run batch processing with Daniele comparison (both methods)
 batch-daniele:
-	@echo "Running batch processing with Daniele comparison..."
+	@echo "Running batch processing with Daniele comparison (both methods)..."
 	$(PYTHON) $(SRC_DIR)/analysis/extract_vth.py $(DATA_DIR)/raw --run_all \
+		--methods traditional sqrt \
 		--out $(OUTPUT_DIR)/vth_extraction/csv/vth_all.csv \
 		--summary-out $(OUTPUT_DIR)/vth_extraction/csv/vth_summary.csv \
 		--plots-outdir $(OUTPUT_DIR)/vth_extraction/plots \
@@ -125,8 +127,7 @@ derivative: extract-data
 	$(PYTHON) $(SRC_DIR)/analysis/vth_derivative_vs_vds_temp.py . \
 		--device-type both \
 		--output-prefix all_chips_complete \
-		--skip-extraction \
-		--output-dir $(OUTPUT_DIR)/derivative_analysis
+		--skip-extraction
 	@echo "✓ Derivative analysis completed!"
 	@echo "Check generated files in $(OUTPUT_DIR)/derivative_analysis/"
 
@@ -138,7 +139,6 @@ derivative-nmos: extract-data
 		--device-type nmos \
 		--output-prefix nmos_derivative \
 		--skip-extraction \
-		--output-dir $(OUTPUT_DIR)/derivative_analysis
 	@echo "✓ NMOS derivative analysis completed!"
 
 # Run derivative analysis for PMOS only
@@ -149,7 +149,6 @@ derivative-pmos: extract-data
 		--device-type pmos \
 		--output-prefix pmos_derivative \
 		--skip-extraction \
-		--output-dir $(OUTPUT_DIR)/derivative_analysis
 	@echo "✓ PMOS derivative analysis completed!"
 
 # Generate English version of all derivative plots
@@ -157,10 +156,7 @@ plots:
 	@echo "Generating English version of all derivative plots..."
 	$(PYTHON) $(SRC_DIR)/analysis/vth_derivative_vs_vds_temp.py . \
 		--device-type both \
-		--output-prefix all_chips_english \
-		--skip-extraction \
-		--output-dir $(OUTPUT_DIR)/derivative_analysis \
-		--english-labels
+		--output-prefix all_chips_english
 	@echo "✓ English plots generated!"
 
 # ===== LEGACY TARGETS (for backward compatibility) =====
@@ -178,7 +174,6 @@ quick-all:
 		--device-type both \
 		--output-prefix all_chips_complete \
 		--skip-extraction \
-		--output-dir $(OUTPUT_DIR)/derivative_analysis
 	@echo "✓ Quick analysis completed!"
 
 # List all generated files

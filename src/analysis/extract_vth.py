@@ -298,7 +298,8 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
               daniele_csv: Optional[str] = None,
               compare_out: Optional[str] = None,
               compare_status_out: Optional[str] = None,
-              compare_threshold: float = 0.01) -> None:
+              compare_threshold: float = 0.01,
+              methods: List[str] = ["traditional"]) -> None:
     pattern = os.path.join(root, "**", "*.txt")
     files = sorted(glob(pattern, recursive=True))
     files = [p for p in files if os.path.basename(p).lower() in {"1.txt", "2.txt", "3.txt", "4.txt"}]
@@ -313,45 +314,56 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
         try:
             blocks = parse_measurement_file(path)
         except Exception as e:
-            rows.append([path, extract_temperature_from_path(path), infer_device_type_from_path(path), "", "", "", 0, f"parse_error: {e}"])
+            rows.append([path, extract_temperature_from_path(path), infer_device_type_from_path(path), "", "", "", "", "", 0, f"parse_error: {e}"])
             continue
         device = infer_device_type_from_path(path)
         block_list: List[SweepBlock]
         candidates = [b for b in blocks if include_vd0 or abs(b.vd_volts) > 1e-12]
         if not candidates:
-            rows.append([path, extract_temperature_from_path(path), device, "", "", "", 0, "no_valid_blocks"])
+            rows.append([path, extract_temperature_from_path(path), device, "", "", "", "", "", 0, "no_valid_blocks"])
             continue
         vd_target = 0.1 if device == "nmos" else 1.1
         closest = min(candidates, key=lambda b: abs(b.vd_volts - vd_target))
-        try:
-            vth, gm_max, idx = compute_vth_linear_extrapolation(
-                closest.vg_volts, closest.id_amps, device_type=device, window=window
-            )
-            notes = ""
-        except Exception as e:
-            vth, gm_max, idx = math.nan, math.nan, -1
-            notes = f"compute_error: {e}"
-        rows.append([
-            path, extract_temperature_from_path(path), device, f"{closest.vd_volts:.6g}",
-            ("" if math.isnan(vth) else f"{vth:.6g}"),
-            ("" if math.isnan(gm_max) else f"{gm_max:.6g}"), idx,
-            closest.vg_volts.size, notes,
-        ])
+        
+        # Calculate Vth for each requested method
+        for method in methods:
+            try:
+                if method.lower() == "traditional":
+                    vth, gm_max, idx = compute_vth_linear_extrapolation(
+                        closest.vg_volts, closest.id_amps, device_type=device, window=window
+                    )
+                elif method.lower() == "sqrt":
+                    vth, gm_max, idx = compute_vth_sqrt_method(
+                        closest.vg_volts, closest.id_amps, device_type=device, window=window
+                    )
+                else:
+                    raise ValueError(f"Unknown method: {method}")
+                notes = ""
+            except Exception as e:
+                vth, gm_max, idx = math.nan, math.nan, -1
+                notes = f"compute_error: {e}"
+            
+            rows.append([
+                path, extract_temperature_from_path(path), device, method, f"{closest.vd_volts:.6g}",
+                ("" if math.isnan(vth) else f"{vth:.6g}"),
+                ("" if math.isnan(gm_max) else f"{gm_max:.6g}"), idx,
+                closest.vg_volts.size, notes,
+            ])
 
     with open(results_csv, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["file_path", "temperature", "device", "vd_V", "vth_V", "gm_max_A_per_V", "gm_max_index", "num_points", "notes"])
+        w.writerow(["file_path", "temperature", "device", "method", "vd_V", "vth_V", "gm_max_A_per_V", "gm_max_index", "num_points", "notes"])
         w.writerows(rows)
 
     # Build summary by temperature, device, device_index across chips
     try:
         import pandas as pd
-        df = pd.DataFrame(rows, columns=["file_path", "temperature", "device", "vd_V", "vth_V", "gm_max_A_per_V", "gm_max_index", "num_points", "notes"])
+        df = pd.DataFrame(rows, columns=["file_path", "temperature", "device", "method", "vd_V", "vth_V", "gm_max_A_per_V", "gm_max_index", "num_points", "notes"])
         df = df[df["vth_V"] != ""].copy()
         df["vth_V"] = df["vth_V"].astype(float)
         df["device_index"] = df["file_path"].str.extract(r"/(\d+)\.txt$|\\(\d+)\.txt$", expand=True).fillna("").sum(axis=1)
         df["device_index"] = pd.to_numeric(df["device_index"], errors="coerce").astype("Int64")
-        grp = (df.groupby(["temperature", "device", "device_index"], dropna=False)
+        grp = (df.groupby(["temperature", "device", "method", "device_index"], dropna=False)
                  .agg(count=("vth_V", "size"),
                       mean_vth_V=("vth_V", "mean"),
                       std_vth_V=("vth_V", "std"),
@@ -364,10 +376,10 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
         df["chip"] = df["file_path"].str.extract(r"[\\/](chip\d+)[\\/]")
         df["device_index"] = df["device_index"].astype("Int64")
         df["device_label"] = df.apply(lambda r: (str(r["device"]) + ("" if pd.isna(r["device_index"]) else str(int(r["device_index"])))), axis=1)
-        chip_mean = (df.groupby(["temperature", "device_label", "chip"], dropna=False)
+        chip_mean = (df.groupby(["temperature", "device_label", "method", "chip"], dropna=False)
                        .agg(vth_V=("vth_V", "mean"))
                        .reset_index())
-        pivot = chip_mean.pivot_table(index=["temperature", "device_label"], columns="chip", values="vth_V", aggfunc="mean")
+        pivot = chip_mean.pivot_table(index=["temperature", "device_label", "method"], columns="chip", values="vth_V", aggfunc="mean")
         # compute row-wise avg/std ignoring NaN
         pivot["avg_vth_V"] = pivot.mean(axis=1, skipna=True)
         pivot["std_vth_V"] = pivot.std(axis=1, ddof=1, skipna=True)
@@ -387,7 +399,7 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
             return base + int(m.group(2))
         pivot["T_K"] = pivot["temperature"].map(k_to_num)
         pivot["device_order"] = pivot["device_label"].map(dev_order)
-        pivot = pivot.sort_values(["device_order", "T_K", "device_label"])  # stable order
+        pivot = pivot.sort_values(["device_order", "T_K", "device_label", "method"])  # stable order
         pivot = pivot.drop(columns=["T_K", "device_order"])
         if pivot_csv:
             pivot.to_csv(pivot_csv, index=False)
@@ -435,32 +447,37 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
             except Exception:
                 return float("nan")
 
-        for dtype, fname in (("nmos", os.path.join(plots_outdir, "vth_nmos_vs_temp.pdf")),
-                             ("pmos", os.path.join(plots_outdir, "vth_pmos_vs_temp.pdf"))):
-            d = grp[grp["device"] == dtype].copy()
-            if d.empty:
-                continue
-            d["T_K"] = d["temperature"].map(k_to_num)
-            plt.figure(figsize=(7.5, 5.0), dpi=120)
-            import math as _math
-            for dev_idx, sub in d.groupby("device_index"):
-                sub = sub.sort_values("T_K")
-                # Legend label as NMOS1/PMOS1 etc.
-                try:
-                    idx_int = int(dev_idx) if dev_idx is not None and not (hasattr(dev_idx, 'isna') and dev_idx.isna()) else None
-                except Exception:
-                    idx_int = None
-                label = f"{dtype.upper()}{idx_int if idx_int is not None else ''}"
-                plt.errorbar(sub["T_K"].values, sub["mean_vth_V"].values, yerr=sub["std_vth_V"].fillna(0.0).values,
-                             marker="o", capsize=3, label=label)
-            plt.xlabel("Temperature (K)")
-            plt.ylabel("Vth (V)")
-            plt.title(f"Vth vs T — {dtype.upper()} (mean ± std across chips)")
-            plt.legend(loc="best", ncol=2, fontsize=8)
-            plt.grid(True, alpha=0.3)
-            plt.tight_layout()
-            plt.savefig(fname)
-            plt.close()
+        # Create separate plots for each method and device type
+        for method in methods:
+            for dtype, fname_base in (("nmos", "vth_nmos_vs_temp"), ("pmos", "vth_pmos_vs_temp")):
+                d = grp[(grp["device"] == dtype) & (grp["method"] == method)].copy()
+                if d.empty:
+                    continue
+                d["T_K"] = d["temperature"].map(k_to_num)
+                
+                # Create filename with method suffix
+                fname = os.path.join(plots_outdir, f"{fname_base}_{method}.pdf")
+                
+                plt.figure(figsize=(7.5, 5.0), dpi=120)
+                import math as _math
+                for dev_idx, sub in d.groupby("device_index"):
+                    sub = sub.sort_values("T_K")
+                    # Legend label as NMOS1/PMOS1 etc.
+                    try:
+                        idx_int = int(dev_idx) if dev_idx is not None and not (hasattr(dev_idx, 'isna') and dev_idx.isna()) else None
+                    except Exception:
+                        idx_int = None
+                    label = f"{dtype.upper()}{idx_int if idx_int is not None else ''}"
+                    plt.errorbar(sub["T_K"].values, sub["mean_vth_V"].values, yerr=sub["std_vth_V"].fillna(0.0).values,
+                                 marker="o", capsize=3, label=label)
+                plt.xlabel("Temperature (K)")
+                plt.ylabel("Vth (V)")
+                plt.title(f"Vth vs T — {dtype.upper()} ({method.capitalize()} method, mean ± std across chips)")
+                plt.legend(loc="best", ncol=2, fontsize=8)
+                plt.grid(True, alpha=0.3)
+                plt.tight_layout()
+                plt.savefig(fname)
+                plt.close()
     except Exception as e:
         # Pandas/matplotlib might be missing; print error for debug
         try:
@@ -857,6 +874,8 @@ def main() -> None:
     parser.add_argument("--plots-outdir", default=".", help="Directory to save plots (used with --run_all)")
     parser.add_argument("--daniele-csv", default="", help="Path al CSV di riferimento (es. RisultatiDaniele.csv) per il confronto")
     parser.add_argument("--compare-threshold", type=float, default=0.01, help="Soglia assoluta per PASS/FAIL sulle delta (default 0.01)")
+    parser.add_argument("--methods", nargs="+", default=["traditional"], choices=["traditional", "sqrt"], 
+                        help="Metodi da utilizzare per l'estrazione Vth (default: traditional)")
     args = parser.parse_args()
 
     if args.gui:
@@ -876,7 +895,7 @@ def main() -> None:
                   plots_outdir=os.path.abspath(args.plots_outdir), pivot_csv=_pivot,
                   daniele_csv=(os.path.abspath(args.daniele_csv) if args.daniele_csv else None),
                   compare_out=_cmp, compare_status_out=_cmp_status,
-                  compare_threshold=args.compare_threshold)
+                  compare_threshold=args.compare_threshold, methods=args.methods)
         return
     pattern = os.path.join(root, "**", "*.txt")
     files = sorted(glob(pattern, recursive=True))
@@ -890,7 +909,7 @@ def main() -> None:
     with open(args.out, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow([
-            "file_path", "temperature", "device", "vd_V", "vth_V",
+            "file_path", "temperature", "device", "method", "vd_V", "vth_V",
             "gm_max_A_per_V", "gm_max_index", "num_points", "notes",
         ])
 
@@ -898,7 +917,7 @@ def main() -> None:
             try:
                 blocks = parse_measurement_file(path)
             except Exception as e:
-                writer.writerow([path, "", "", "", "", "", "", "", 0, f"parse_error: {e}"])
+                writer.writerow([path, "", "", "", "", "", "", "", "", 0, f"parse_error: {e}"])
                 continue
 
             device = infer_device_type_from_path(path)
@@ -914,25 +933,34 @@ def main() -> None:
                 block_list = find_blocks_for_vd(blocks, desired_vd=args.vd, include_vd0=args.include_vd0)
 
             if not block_list:
-                writer.writerow([path, temperature, device, "", "", "", "", 0, "no_valid_blocks"])
+                writer.writerow([path, temperature, device, "", "", "", "", "", 0, "no_valid_blocks"])
                 continue
 
             for b in block_list:
-                try:
-                    vth, gm_max, idx = compute_vth_linear_extrapolation(
-                        b.vg_volts, b.id_amps, device_type=device, window=args.window
-                    )
-                    notes = ""
-                except Exception as e:
-                    vth, gm_max, idx = math.nan, math.nan, -1
-                    notes = f"compute_error: {e}"
+                # Calculate Vth for each requested method
+                for method in args.methods:
+                    try:
+                        if method.lower() == "traditional":
+                            vth, gm_max, idx = compute_vth_linear_extrapolation(
+                                b.vg_volts, b.id_amps, device_type=device, window=args.window
+                            )
+                        elif method.lower() == "sqrt":
+                            vth, gm_max, idx = compute_vth_sqrt_method(
+                                b.vg_volts, b.id_amps, device_type=device, window=args.window
+                            )
+                        else:
+                            raise ValueError(f"Unknown method: {method}")
+                        notes = ""
+                    except Exception as e:
+                        vth, gm_max, idx = math.nan, math.nan, -1
+                        notes = f"compute_error: {e}"
 
-                writer.writerow([
-                    path, temperature, device, f"{b.vd_volts:.6g}",
-                    ("" if math.isnan(vth) else f"{vth:.6g}"),
-                    ("" if math.isnan(gm_max) else f"{gm_max:.6g}"), idx,
-                    b.vg_volts.size, notes,
-                ])
+                    writer.writerow([
+                        path, temperature, device, method, f"{b.vd_volts:.6g}",
+                        ("" if math.isnan(vth) else f"{vth:.6g}"),
+                        ("" if math.isnan(gm_max) else f"{gm_max:.6g}"), idx,
+                        b.vg_volts.size, notes,
+                    ])
     # end main
 
 

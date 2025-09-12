@@ -20,36 +20,80 @@ def extract_vth_for_all_vds(root_dir: str, output_csv: str = "vth_all_vds.csv"):
     """
     print("Extracting Vth for all available Vds...")
     
-    # Usa lo script esistente con --all-vd per ottenere tutte le Vds
-    cmd = f"python3 scripts/extract_vth.py {root_dir} --all-vd --out {output_csv}"
-    os.system(cmd)
+    # Cerca prima il file con tutti i Vds (per derivative analysis)
+    all_vds_csv = "output/derivative_analysis/csv/all_chips_vth_all_vds.csv"
+    batch_csv = "output/vth_extraction/csv/vth_all.csv"
     
-    print(f"Extraction completed. Results saved in: {output_csv}")
+    if os.path.exists(all_vds_csv):
+        print(f"Using CSV with all Vds: {all_vds_csv}")
+        import shutil
+        shutil.copy2(all_vds_csv, output_csv)
+        print(f"Copied to: {output_csv}")
+    elif os.path.exists(batch_csv):
+        print(f"Using CSV from make batch: {batch_csv}")
+        import shutil
+        shutil.copy2(batch_csv, output_csv)
+        print(f"Copied to: {output_csv}")
+    else:
+        print(f"No existing CSV found. Please run 'make derivative' or 'make batch' first")
+        # Fallback: genera CSV pulito
+        temp_csv = f"{output_csv}.tmp"
+        cmd = f"python3 src/analysis/extract_vth.py {root_dir} --all-vd --methods traditional sqrt --out {temp_csv}"
+        os.system(cmd)
+        
+        # Pulisci le righe con errori di parsing
+        with open(temp_csv, 'r') as infile, open(output_csv, 'w') as outfile:
+            for line in infile:
+                if 'parse_error' not in line:
+                    outfile.write(line)
+        
+        # Rimuovi file temporaneo
+        os.remove(temp_csv)
+        print(f"Clean CSV generated: {output_csv}")
 
-def calculate_derivative_vs_temp_vds(csv_file: str, device_type: str = "both"):
+def calculate_derivative_vs_temp_vds(csv_file: str, device_type: str = "both", method: str = "traditional"):
     """
     Calcola la derivata dVth/dT per ogni combinazione di device e Vds.
     
     Args:
         csv_file: File CSV con i risultati Vth
         device_type: "nmos", "pmos", o "both"
+        method: "traditional", "sqrt", o "both"
     
     Returns:
         DataFrame con temperature, Vds, device e dVth/dT
     """
-    print(f"Calculating derivative for {device_type}...")
+    print(f"Calculating derivative for {device_type} using {method} method...")
     
     # Leggi i dati
     df = pd.read_csv(csv_file)
     
-    # Filtra righe con errori e righe vuote
-    df = df[df['notes'].isna() | (df['notes'] == '')].copy()
+    # Filtra righe con errori (contengono 'error' nelle note)
+    # Gestisce il caso in cui notes non è di tipo stringa
+    try:
+        df = df[~df['notes'].str.contains('error', na=False)].copy()
+    except AttributeError:
+        # Se notes non è di tipo stringa, filtra solo valori non-null
+        df = df[df['notes'].isna() | (df['notes'] == '')].copy()
     
-    # Filtra righe con temperatura valida
-    df = df[df['temperature'].notna() & (df['temperature'] != '')].copy()
+    # Filtra righe con temperatura valida (deve contenere 'K' e essere numerica)
+    df = df[df['temperature'].notna() & (df['temperature'] != '') & df['temperature'].str.contains('K', na=False)].copy()
+    
+    # Filtra per metodo se specificato
+    if method != "both":
+        df = df[df['method'] == method].copy()
+    
+    # Filtra righe che hanno valori validi per tutte le colonne necessarie
+    df = df[df['device'].notna() & (df['device'] != '')].copy()
+    df = df[df['vd_V'].notna()].copy()
+    df = df[df['vth_V'].notna() & (df['vth_V'] != '')].copy()
     
     # Converti temperatura da stringa a numerico
-    df['temp_numeric'] = df['temperature'].str.replace('K', '').astype(float)
+    temp_clean = df['temperature'].str.replace('K', '', regex=False)
+    df['temp_numeric'] = pd.to_numeric(temp_clean, errors='coerce')
+    
+    # Filtra righe con temperatura numerica valida
+    df = df[df['temp_numeric'].notna()].copy()
     
     # Filtra per tipo di device
     if device_type == "nmos":
@@ -70,10 +114,10 @@ def calculate_derivative_vs_temp_vds(csv_file: str, device_type: str = "both"):
     else:  # "both"
         df = pd.concat([nmos_data, pmos_data], ignore_index=True)
     
-    # Raggruppa per device e Vds
+    # Raggruppa per device, method e Vds
     derivative_data = []
     
-    for (device, vds), group in df.groupby(['device', 'vd_V']):
+    for (device, method_val, vds), group in df.groupby(['device', 'method', 'vd_V']):
         if len(group) < 2:
             continue
             
@@ -102,6 +146,7 @@ def calculate_derivative_vs_temp_vds(csv_file: str, device_type: str = "both"):
                     if valid_mask[i]:
                         derivative_data.append({
                             'device': device,
+                            'method': method_val,
                             'temperature': temp,
                             'vds': vds,
                             'vth': vth_values[i],
@@ -120,18 +165,21 @@ def create_3d_plot(derivative_df: pd.DataFrame, output_pdf: str, device_type: st
     fig = plt.figure(figsize=(15, 10))
     ax = fig.add_subplot(111, projection='3d')
     
-    # Colori diversi per ogni device
-    devices = derivative_df['device'].unique()
-    colors = plt.cm.tab10(np.linspace(0, 1, len(devices)))
+    # Colori diversi per ogni combinazione device+method
+    device_methods = derivative_df[['device', 'method']].drop_duplicates()
+    colors = plt.cm.tab10(np.linspace(0, 1, len(device_methods)))
     
-    for i, device in enumerate(devices):
-        device_data = derivative_df[derivative_df['device'] == device]
+    for i, (_, row) in enumerate(device_methods.iterrows()):
+        device = row['device']
+        method = row['method']
+        device_data = derivative_df[(derivative_df['device'] == device) & (derivative_df['method'] == method)]
         
         x = device_data['temperature'].values
         y = device_data['vds'].values
         z = device_data['dvth_dt'].values
         
-        scatter = ax.scatter(x, y, z, c=[colors[i]], label=device, s=50, alpha=0.7)
+        label = f"{device} ({method})"
+        scatter = ax.scatter(x, y, z, c=[colors[i]], label=label, s=50, alpha=0.7)
     
     ax.set_xlabel('Temperature (K)', fontsize=12)
     ax.set_ylabel('Vds (V)', fontsize=12)
@@ -223,30 +271,33 @@ def create_contour_plot(derivative_df: pd.DataFrame, output_pdf: str, device_typ
     """
     Crea un grafico a contorni con temperatura, Vds e dVth/dT
     """
-    devices = derivative_df['device'].unique()
-    n_devices = len(devices)
+    # Crea subplot per ogni combinazione device+method
+    device_methods = derivative_df[['device', 'method']].drop_duplicates()
+    n_combinations = len(device_methods)
     
-    if n_devices <= 3:
-        cols = n_devices
+    if n_combinations <= 3:
+        cols = n_combinations
         rows = 1
     else:
         cols = 3
-        rows = (n_devices + 2) // 3
+        rows = (n_combinations + 2) // 3
     
     fig, axes = plt.subplots(rows, cols, figsize=(5*cols, 4*rows))
-    if n_devices == 1:
+    if n_combinations == 1:
         axes = [axes]
     elif rows == 1:
         axes = axes.flatten()
     else:
         axes = axes.flatten()
     
-    for i, device in enumerate(devices):
+    for i, (_, row) in enumerate(device_methods.iterrows()):
         if i >= len(axes):
             break
             
         ax = axes[i]
-        device_data = derivative_df[derivative_df['device'] == device]
+        device = row['device']
+        method = row['method']
+        device_data = derivative_df[(derivative_df['device'] == device) & (derivative_df['method'] == method)]
         
         # Crea griglia per interpolazione
         temp_range = np.sort(device_data['temperature'].unique())
@@ -269,7 +320,9 @@ def create_contour_plot(derivative_df: pd.DataFrame, output_pdf: str, device_typ
         
         # Crea contour plot
         contour = ax.contourf(X, Y, Z, levels=20, cmap='RdBu_r')
-        ax.contour(X, Y, Z, levels=10, colors='black', alpha=0.3, linewidths=0.5)
+        # Gestisce i valori NaN per evitare warning
+        Z_clean = np.nan_to_num(Z, nan=0.0, posinf=0.0, neginf=0.0)
+        ax.contour(X, Y, Z_clean, levels=10, colors='black', alpha=0.3, linewidths=0.5)
         
         # Aggiungi colorbar
         cbar = plt.colorbar(contour, ax=ax)
@@ -278,14 +331,14 @@ def create_contour_plot(derivative_df: pd.DataFrame, output_pdf: str, device_typ
         # Labels (scambiati)
         ax.set_xlabel('Temperature (K)', fontsize=10)
         ax.set_ylabel('Vds (V)', fontsize=10)
-        ax.set_title(f'{device}', fontsize=12)
+        ax.set_title(f'{device} ({method})', fontsize=12)
         
         # Aggiungi punti dati (scambiati)
         ax.scatter(device_data['temperature'], device_data['vds'], 
                   c='black', s=20, alpha=0.7, marker='o')
     
     # Nascondi subplot vuoti
-    for i in range(n_devices, len(axes)):
+    for i in range(n_combinations, len(axes)):
         axes[i].set_visible(False)
     
     plt.suptitle(f'Vth Derivative vs Temperature and Vds - {device_type.upper()}', fontsize=16)
@@ -304,6 +357,8 @@ def main():
                        help="Salta l'estrazione Vth se il CSV esiste già")
     parser.add_argument("--output-prefix", default="vth_derivative_vds_temp",
                        help="Prefisso per i file di output")
+    parser.add_argument("--method", choices=["traditional", "sqrt", "both"], default="traditional",
+                       help="Metodo di estrazione Vth da utilizzare")
     
     args = parser.parse_args()
     
@@ -318,7 +373,7 @@ def main():
         print(f"Using existing file: {vth_csv}")
     
     # Calcola derivata
-    derivative_df = calculate_derivative_vs_temp_vds(vth_csv, args.device_type)
+    derivative_df = calculate_derivative_vs_temp_vds(vth_csv, args.device_type, args.method)
     
     if derivative_df.empty:
         print("No valid data found for derivative analysis")
