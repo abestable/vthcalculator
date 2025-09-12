@@ -1,10 +1,12 @@
 # Makefile per VthCalculator - Versione Riorganizzata
 # Automatizza Vth extraction, batch processing, e derivative analysis
 
-.PHONY: help all nmos pmos clean clean-data gui batch batch-daniele derivative derivative-nmos derivative-pmos english quick-all list install test
+.PHONY: help all nmos pmos clean clean-data gui batch batch-daniele derivative derivative-nmos derivative-pmos english quick-all list install test venv-activate
 
 # Configurazioni
-PYTHON = python3
+VENV_DIR = venv
+PYTHON = $(VENV_DIR)/bin/python
+PIP = $(VENV_DIR)/bin/pip
 SRC_DIR = src
 DATA_DIR = data
 OUTPUT_DIR = output
@@ -16,7 +18,8 @@ help:
 	@echo "Struttura riorganizzata - Available targets:"
 	@echo ""
 	@echo "=== SETUP ==="
-	@echo "  install     - Installa le dipendenze"
+	@echo "  install     - Installa le dipendenze in virtual environment"
+	@echo "  venv-activate - Mostra come attivare il virtual environment"
 	@echo "  test        - Esegue i test unitari"
 	@echo ""
 	@echo "=== BASIC VTH EXTRACTION ==="
@@ -47,9 +50,21 @@ help:
 # ===== SETUP =====
 
 install:
+	@echo "Creating virtual environment if it doesn't exist..."
+	@python3 -m venv $(VENV_DIR) || echo "Virtual environment already exists"
 	@echo "Installing dependencies..."
-	pip install -r requirements.txt
-	@echo "✓ Dependencies installed"
+	$(PIP) install --upgrade pip
+	$(PIP) install -r requirements.txt
+	@echo "✓ Dependencies installed in virtual environment"
+
+venv-activate:
+	@echo "To activate the virtual environment, run:"
+	@echo "  source $(VENV_DIR)/bin/activate"
+	@echo ""
+	@echo "To deactivate, run:"
+	@echo "  deactivate"
+	@echo ""
+	@echo "Or use the Makefile targets directly (they use the venv automatically)"
 
 test:
 	@echo "Running tests..."
@@ -227,5 +242,5 @@ dist:
 # Install in development mode
 dev-install:
 	@echo "Installing in development mode..."
-	pip install -e .
+	$(PIP) install -e .
 	@echo "✓ Development installation completed"
