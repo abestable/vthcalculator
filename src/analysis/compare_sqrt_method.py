@@ -190,8 +190,7 @@ def plot_comparison(df: pd.DataFrame, output_dir: str):
                 temp_means = df_clean[mask].groupby("temperature")["vth_diff_V"].mean()
                 temp_stds = df_clean[mask].groupby("temperature")["vth_diff_V"].std()
                 
-                plt.errorbar(
-                    temp_means.index,
+                plt.errorbar(np.array(temp_means.index),
                     temp_means.values,
                     yerr=temp_stds.values,
                     marker='o',

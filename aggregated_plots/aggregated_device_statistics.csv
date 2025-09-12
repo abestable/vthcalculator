@@ -1,0 +1,5 @@
+,difference,difference,difference,percent_diff,percent_diff
+,count,mean,std,mean,std
+device_type,,,,,
+NMOS,22,-1.6e-05,4.9e-05,5.939985,13.818561
+PMOS,20,4.5e-05,0.000294,10.472737,53.96993

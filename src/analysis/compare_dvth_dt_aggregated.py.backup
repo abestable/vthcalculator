@@ -213,8 +213,8 @@ def create_aggregated_plots(df_aggregated: pd.DataFrame, output_dir: str = "."):
     for method in ['traditional', 'sqrt']:
         method_data = nmos_data[nmos_data['method'] == method]
         if len(method_data) > 0:
-            ax1.errorbar(np.array(method_data['temp_avg']), np.array(method_data['dvth_dt_mean']), 
-                        yerr=np.array(method_data['dvth_dt_std']), 
+            ax1.errorbar(method_data['temp_avg'], method_data['dvth_dt_mean'], 
+                        yerr=method_data['dvth_dt_std'], 
                         marker=markers[method], color=colors[method], 
                         label=f'{method.capitalize()} (Vds={method_data["vds"].iloc[0]}V)',
                         alpha=0.7, markersize=6, capsize=3)
@@ -230,8 +230,8 @@ def create_aggregated_plots(df_aggregated: pd.DataFrame, output_dir: str = "."):
     for method in ['traditional', 'sqrt']:
         method_data = pmos_data[pmos_data['method'] == method]
         if len(method_data) > 0:
-            ax2.errorbar(np.array(method_data['temp_avg']), np.array(method_data['dvth_dt_mean']), 
-                        yerr=np.array(method_data['dvth_dt_std']), 
+            ax2.errorbar(method_data['temp_avg'], method_data['dvth_dt_mean'], 
+                        yerr=method_data['dvth_dt_std'], 
                         marker=markers[method], color=colors[method], 
                         label=f'{method.capitalize()} (Vds={method_data["vds"].iloc[0]}V)',
                         alpha=0.7, markersize=6, capsize=3)
@@ -274,8 +274,8 @@ def create_aggregated_plots(df_aggregated: pd.DataFrame, output_dir: str = "."):
         # Scatter plot con error bars colorato per device
         for device_idx in nmos_comp_df['device_index'].unique():
             device_data = nmos_comp_df[nmos_comp_df['device_index'] == device_idx]
-            ax1.errorbar(np.array(device_data['traditional_mean']), np.array(device_data['sqrt_mean']),
-                        xerr=device_data['traditional_std'], yerr=np.array(device_data['sqrt_std']),
+            ax1.errorbar(device_data['traditional_mean'], device_data['sqrt_mean'],
+                        xerr=device_data['traditional_std'], yerr=device_data['sqrt_std'],
                         fmt=device_markers[device_idx], color=device_colors[device_idx], 
                         alpha=0.8, capsize=3, markersize=8,
                         label=f'Device {device_idx}')
@@ -312,8 +312,8 @@ def create_aggregated_plots(df_aggregated: pd.DataFrame, output_dir: str = "."):
         # Scatter plot con error bars colorato per device
         for device_idx in pmos_comp_df['device_index'].unique():
             device_data = pmos_comp_df[pmos_comp_df['device_index'] == device_idx]
-            ax2.errorbar(np.array(device_data['traditional_mean']), np.array(device_data['sqrt_mean']),
-                        xerr=device_data['traditional_std'], yerr=np.array(device_data['sqrt_std']),
+            ax2.errorbar(device_data['traditional_mean'], device_data['sqrt_mean'],
+                        xerr=device_data['traditional_std'], yerr=device_data['sqrt_std'],
                         fmt=device_markers[device_idx], color=device_colors[device_idx], 
                         alpha=0.8, capsize=3, markersize=8,
                         label=f'Device {device_idx}')
@@ -368,8 +368,8 @@ def create_aggregated_plots(df_aggregated: pd.DataFrame, output_dir: str = "."):
         nmos_comp_df['difference'] = nmos_comp_df['sqrt_mean'] - nmos_comp_df['traditional_mean']
         nmos_comp_df['difference_std'] = np.sqrt(nmos_comp_df['sqrt_std']**2 + nmos_comp_df['traditional_std']**2)
         
-        ax1.errorbar(np.array(nmos_comp_df['temp_avg']), np.array(nmos_comp_df['difference']),
-                    yerr=np.array(nmos_comp_df['difference_std']), fmt='o', alpha=0.7, capsize=3)
+        ax1.errorbar(nmos_comp_df['temp_avg'], nmos_comp_df['difference'],
+                    yerr=nmos_comp_df['difference_std'], fmt='o', alpha=0.7, capsize=3)
         
         ax1.axhline(y=0, color='k', linestyle='--', alpha=0.5)
         ax1.set_xlabel('Temperatura (K)')
@@ -382,8 +382,8 @@ def create_aggregated_plots(df_aggregated: pd.DataFrame, output_dir: str = "."):
         pmos_comp_df['difference'] = pmos_comp_df['sqrt_mean'] - pmos_comp_df['traditional_mean']
         pmos_comp_df['difference_std'] = np.sqrt(pmos_comp_df['sqrt_std']**2 + pmos_comp_df['traditional_std']**2)
         
-        ax2.errorbar(np.array(pmos_comp_df['temp_avg']), np.array(pmos_comp_df['difference']),
-                    yerr=np.array(pmos_comp_df['difference_std']), fmt='o', alpha=0.7, capsize=3)
+        ax2.errorbar(pmos_comp_df['temp_avg'], pmos_comp_df['difference'],
+                    yerr=pmos_comp_df['difference_std'], fmt='o', alpha=0.7, capsize=3)
         
         ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
         ax2.set_xlabel('Temperatura (K)')
