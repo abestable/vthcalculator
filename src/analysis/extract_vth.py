@@ -451,7 +451,7 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
                 except Exception:
                     idx_int = None
                 label = f"{dtype.upper()}{idx_int if idx_int is not None else ''}"
-                plt.errorbar(sub["T_K"], sub["mean_vth_V"], yerr=sub["std_vth_V"].fillna(0.0),
+                plt.errorbar(sub["T_K"].values, sub["mean_vth_V"].values, yerr=sub["std_vth_V"].fillna(0.0).values,
                              marker="o", capsize=3, label=label)
             plt.xlabel("Temperature (K)")
             plt.ylabel("Vth (V)")
