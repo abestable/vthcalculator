@@ -209,6 +209,10 @@ def compute_vth_sqrt_method(vg: np.ndarray,
     if vg.ndim != 1 or id_a.ndim != 1 or vg.size != id_a.size:
         raise ValueError("vg and id_a must be 1D arrays of equal length")
 
+    if device_type.lower() == "pmos":
+        vd = 0.0  # Set vd to 0 for pmos
+    else:
+        vd = 1.2  # Set vd to 1.2 for nmos
     # For PMOS, flip the Vg axis (0 becomes 1.2, 1.2 becomes 0, etc.)
     if device_type.lower() == "pmos":
         vg_flipped = 1.2 - vg  # Flip Vg axis around 1.2V
@@ -322,11 +326,19 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
         if not candidates:
             rows.append([path, extract_temperature_from_path(path), device, "", "", "", "", "", 0, "no_valid_blocks"])
             continue
-        vd_target = 0.1 if device == "nmos" else 1.1
-        closest = min(candidates, key=lambda b: abs(b.vd_volts - vd_target))
-        
         # Calculate Vth for each requested method
         for method in methods:
+            # Select the appropriate Vd block for each method
+            if method.lower() == "sqrt":
+                if device == "nmos":
+                    # For NMOS sqrt, find block closest to 1.1V (symmetric with PMOS)
+                    closest = min(candidates, key=lambda b: abs(b.vd_volts - 1.1))
+                else:
+                    # For PMOS sqrt, find block with Vd closest to 0.0V
+                    closest = min(candidates, key=lambda b: abs(b.vd_volts - 0.0))
+            else:
+                vd_target = 0.1 if device == "nmos" else 1.1
+                closest = min(candidates, key=lambda b: abs(b.vd_volts - vd_target))
             try:
                 if method.lower() == "traditional":
                     vth, gm_max, idx = compute_vth_linear_extrapolation(
@@ -343,8 +355,11 @@ def run_batch(root: str, vd: float, include_vd0: bool, window: int,
                 vth, gm_max, idx = math.nan, math.nan, -1
                 notes = f"compute_error: {e}"
             
+            # Use the actual Vd from the selected block
+            vd_display = closest.vd_volts
+            
             rows.append([
-                path, extract_temperature_from_path(path), device, method, f"{closest.vd_volts:.6g}",
+                path, extract_temperature_from_path(path), device, method, f"{vd_display:.6g}",
                 ("" if math.isnan(vth) else f"{vth:.6g}"),
                 ("" if math.isnan(gm_max) else f"{gm_max:.6g}"), idx,
                 closest.vg_volts.size, notes,
@@ -752,7 +767,12 @@ def run_gui() -> None:
                 criterion="max-gm"
             )
         elif method == "Sqrt":
-            # For sqrt method, we need to compute gm differently
+            # Use the same function as batch processing for consistency
+            vth, gm_max, idx = compute_vth_sqrt_method(
+                block.vg_volts, block.id_amps, device_type=device, window=7,
+                criterion="max-gm"
+            )
+            # For GUI display, we need to compute gm and other values
             if device == "pmos":
                 vg_flipped = 1.2 - block.vg_volts
                 y = np.abs(block.id_amps)
@@ -765,24 +785,9 @@ def run_gui() -> None:
             gm = np.gradient(y_sqrt, vg_flipped, edge_order=1)
             dgm = np.gradient(gm, vg_flipped, edge_order=1)
             
-            # Find maximum gm
-            current_floor = max(1e-10, 0.001 * np.nanmax(y))
-            valid = y >= current_floor
-            if np.count_nonzero(valid) < 7:
-                valid = np.ones_like(y, dtype=bool)
-            
-            gm_masked = np.where(valid, gm, -np.inf)
-            idx = int(np.nanargmax(gm_masked))
-            
-            # Compute tangent
+            # Compute slope and intercept for tangent line
             slope = gm[idx]
             intercept = y_sqrt[idx] - slope * vg_flipped[idx]
-            vth_mag = -intercept / slope if abs(slope) > 1e-15 else math.nan
-            
-            if device == "pmos" and not math.isnan(vth_mag):
-                vth = -1.0 * float(vth_mag)
-            else:
-                vth = float(vth_mag) if not math.isnan(vth_mag) else math.nan
         else:
             raise ValueError(f"Unknown method: {method}")
 
@@ -955,6 +960,12 @@ def main() -> None:
                         vth, gm_max, idx = math.nan, math.nan, -1
                         notes = f"compute_error: {e}"
 
+                    # Adjust vd for sqrt method
+                    if method.lower() == "sqrt":
+                        if device == "nmos":
+                            b.vd_volts = 1.2
+                        elif device == "pmos":
+                            b.vd_volts = 0.0
                     writer.writerow([
                         path, temperature, device, method, f"{b.vd_volts:.6g}",
                         ("" if math.isnan(vth) else f"{vth:.6g}"),
